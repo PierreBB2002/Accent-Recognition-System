@@ -3,10 +3,13 @@ import glob
 import librosa
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+import warnings
+warnings.filterwarnings('ignore')  # Suppress convergence warning for demonstration
 
-training_data_dir = r'C:\Users\HP\Desktop\training'
-testing_data_dir = r'C:\Users\HP\Desktop\testing'
+training_data_dir = r'C:\Users\PC\Desktop\Training'
+testing_data_dir = r'C:\Users\PC\Desktop\Testing'
 K = 6
 
 
@@ -61,9 +64,15 @@ def process_training_data(data_dir):
         label = os.path.basename(filename).split('_')[0]
         labels.append(label)
 
+    # Print extracted labels
+    print(f"Extracted labels: {labels}")
+
     # Encode labels
     label_encoder = LabelEncoder()
     labels = label_encoder.fit_transform(labels)
+
+    # Print encoded labels
+    print(f"Encoded labels: {labels}")
 
     features = np.array(features)
     features, scaler = preprocess(features)
@@ -78,10 +87,23 @@ def process_testing_data(audio_file_path, scaler):
     return np.array(extracted_features)
 
 
+def train_mlp_model(features, results):
+    """
+    Given a list of features lists and a list of labels, return a
+    fitted MLP model trained on the data using sklearn implementation.
+    """
+    # Increase max_iter and adjust learning_rate_init if needed
+    model = MLPClassifier(hidden_layer_sizes=(10, 5), activation='logistic', max_iter=1000, learning_rate_init=0.001, solver='lbfgs', verbose=True)
+    model.fit(features, results)
+    return model
+
+
 def main():
     # Process training data
     X_train, y_train, scaler, label_encoder = process_training_data(training_data_dir)
-    model_nn = NN(X_train, y_train)
+    # model_nn = NN(X_train, y_train)
+
+    trained_model = train_mlp_model(X_train, y_train)
 
     while True:
         # Get user input for test file path
@@ -90,11 +112,18 @@ def main():
         # Ensure the path is correctly formatted
         test_file_path = test_file_path.strip('\"')
 
+        if not os.path.isfile(test_file_path):
+            print("Invalid file path. Please try again.")
+            continue
+
         # Process the test file
         X_test = process_testing_data(test_file_path, scaler)
 
         # Make predictions
-        predictions = model_nn.predict(X_test)
+        # predictions = model_nn.predict(X_test)
+        # predicted_label = label_encoder.inverse_transform(predictions)
+
+        predictions = trained_model.predict(X_test)
         predicted_label = label_encoder.inverse_transform(predictions)
 
         # Print the predicted accent
