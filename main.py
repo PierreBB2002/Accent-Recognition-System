@@ -1,107 +1,105 @@
 import os
 import glob
 import librosa
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
-paths = {}
-dir = [
-    r'C:\Users\PC\Desktop\Hebron',
-    r'C:\Users\PC\Desktop\Nablus',
-    r'C:\Users\PC\Desktop\Ramallah_Reef',
-    r'C:\Users\PC\Desktop\Jerusalem'
-]
+training_data_dir = r'C:\Users\HP\Desktop\training'
+testing_data_dir = r'C:\Users\HP\Desktop\testing'
+K = 6
 
 
-def save_paths():
-    for i in dir:
-        if "Hebron" in i:
-            paths['Hebron'] = glob.glob(os.path.join(i, '*.wav'))
-        if "Nablus" in i:
-            paths['Nablus'] = glob.glob(os.path.join(i, '*.wav'))
-        if "Jerusalem" in i:
-            paths['Jerusalem'] = glob.glob(os.path.join(i, '*.wav'))
-        if "Ramallah_Reef" in i:
-            paths['Ramallah_Reef'] = glob.glob(os.path.join(i, '*.wav'))
+class NN:
+    def __init__(self, trainingFeatures, trainingLabels) -> None:
+        self.trainingFeatures = trainingFeatures
+        self.trainingLabels = trainingLabels
+        self.classifier = KNeighborsClassifier(n_neighbors=K)
+        self.classifier.fit(self.trainingFeatures, self.trainingLabels)
+
+    def predict(self, features):
+        """
+        Given a list of features vectors of testing examples
+        return the predicted class labels (list of either 0s or 1s)
+        using the k nearest neighbors
+        """
+        classifier = KNeighborsClassifier(n_neighbors=K)
+        classifier.fit(self.trainingFeatures, self.trainingLabels)
+        return classifier.predict(features)
 
 
-def read_file(file_path):
-    y, sr = librosa.load(file_path, sr=None)
-    return y, sr
+def extract_features(audio_file_path):
+    y, sr = librosa.load(audio_file_path, sr=None, mono=True)
+    mfccs = np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=12), axis=1)
+    energy = np.mean(librosa.feature.rms(y=y), axis=1)
+    zero_crossing_rate = np.mean(librosa.feature.zero_crossing_rate(y=y), axis=1)
 
-
-
-
-
-
-# Function to extract features from audio files
-def extract_features():
-
-    features = {}
-    features_list = []
-    labels_list = []
-
-    for label, file_paths in paths.items():
-        for file_path in file_paths:
-            try:
-                y, sr = read_file(file_path)
-
-                features['mfccs'] = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-                features['spectral_centroid'] = librosa.feature.spectral_centroid(y=y, sr=sr)
-                features['energy'] = librosa.feature.rms(y=y)
-                features['hnr'] = librosa.feature.harmonic_noise_ratio(y=y, sr=sr)
-
-                # Prosodic Features
-                features['zero_crossing_rate'] = librosa.feature.zero_crossing_rate(y=y)
-                features['pitch_frequency'] = librosa.pitch.estimate(y=y, sr=sr, fmin=80, fmax=500)
-
-                # Calculate speaking rate (using the number of frames as a proxy for duration)
-                features['speaking_rate'] = len(features['mfccs'][0]) / (len(y) / sr)
-
+    # Combine all features into a single vector
+    features = np.concatenate((mfccs, energy, zero_crossing_rate))
     return features
 
-# KNN Classifier
-def KNN(features, labels, test_size=0.2, random_state=42):
-    # Split the dataset into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=test_size,
-                                                        random_state=random_state)
 
-    # Standardize the features
+def preprocess(features):
+    """
+    Normalize each feature by subtracting the mean value in each
+    feature and dividing by the standard deviation.
+    """
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    # K-Nearest Neighbors (KNN) classifier
-    knn = KNeighborsClassifier(n_neighbors=5)
-    knn.fit(X_train_scaled, y_train)
-    y_pred_knn = knn.predict(X_test_scaled)
-    accuracy_knn = accuracy_score(y_test, y_pred_knn)
-    print("KNN Accuracy:", accuracy_knn)
+    scaled_features = scaler.fit_transform(features)
+    return scaled_features, scaler
 
 
-# Decision Tree Classifier
-def decision_tree(features, labels, test_size=0.2, random_state=42):
-    # Split the dataset into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=test_size,
-                                                        random_state=random_state)
+def process_training_data(data_dir):
+    features = []
+    labels = []
 
-    # Decision Tree classifier
-    dt = DecisionTreeClassifier(max_depth=5)
-    dt.fit(X_train, y_train)
-    y_pred_dt = dt.predict(X_test)
-    accuracy_dt = accuracy_score(y_test, y_pred_dt)
-    print("Decision Tree Accuracy:", accuracy_dt)
+    for filename in glob.glob(os.path.join(data_dir, '*.wav')):
+        # Extract features
+        extracted_features = extract_features(filename)
+        features.append(extracted_features)
+        # Get the label from the filename (assuming filename format like "Hebron_01.wav")
+        label = os.path.basename(filename).split('_')[0]
+        labels.append(label)
+
+    # Encode labels
+    label_encoder = LabelEncoder()
+    labels = label_encoder.fit_transform(labels)
+
+    features = np.array(features)
+    features, scaler = preprocess(features)
+
+    return features, labels, scaler, label_encoder
 
 
-# Example usage
-save_paths()
-features, labels = extract_features()
+def process_testing_data(audio_file_path, scaler):
+    # Extract features
+    extracted_features = extract_features(audio_file_path)
+    extracted_features = scaler.transform([extracted_features])
+    return np.array(extracted_features)
 
-# Run KNN
-KNN(features, labels)
 
-# Run Decision Tree
-decision_tree(features, labels)
+def main():
+    # Process training data
+    X_train, y_train, scaler, label_encoder = process_training_data(training_data_dir)
+    model_nn = NN(X_train, y_train)
+
+    while True:
+        # Get user input for test file path
+        test_file_path = input("Enter the path to the audio file to test: ")
+
+        # Ensure the path is correctly formatted
+        test_file_path = test_file_path.strip('\"')
+
+        # Process the test file
+        X_test = process_testing_data(test_file_path, scaler)
+
+        # Make predictions
+        predictions = model_nn.predict(X_test)
+        predicted_label = label_encoder.inverse_transform(predictions)
+
+        # Print the predicted accent
+        print(f"Predicted Accent: {predicted_label[0]}")
+
+
+if __name__ == "__main__":
+    main()
