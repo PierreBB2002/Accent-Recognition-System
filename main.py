@@ -239,10 +239,10 @@ file_path_label.place(x=30, y=230)
 
 # Label to show result
 result_label = Label(root, text="", font="arial 14", bg="#3776ab", fg="black")
-result_label.place(x=500, y=200)
+result_label.place(x=500, y=160)
 
 print("Analyzing...")
-root.mainloop()
 
 # Process training data
 X_train, y_train, scaler, label_encoder = process_training_data(training_data_dir)
+root.mainloop()
