@@ -225,7 +225,7 @@ Label(header, text="Accent Recognition Application", font="Helvetica 18 bold", b
 pathLabel = Label(root, text="Selected Path:", font="arial 14 bold", bg="#3776ab", fg="white")
 pathLabel.place(x=10, y=160)
 
-file_path_label = Label(root, text="", font="arial 12", bg="white", fg="black", wraplength=380)
+file_path_label = Label(root, text="", font="arial 12", bg="white", fg="black", wraplength=395)
 file_path_label.place(x=10, y=210)
 
 icon2 = PhotoImage(file="mainLogo2.png")
